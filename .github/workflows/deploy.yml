@@ -1,0 +1,30 @@
+name: AWS Lambda Deploy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: AWS-Anmeldedaten konfigurieren
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::480389513322:role/GithubDeployment
+          aws-region: eu-central-1
+      - name: Serverless installieren
+        run: npm install -g serverless
+      - name: Serverless bereitstellen
+        run: serverless deploy --stage inttest --region eu-central-1
+      - name: Serverless Bereitstellung überprüfen
+        run: serverless info --stage inttest --region eu-central-1
