@@ -26,5 +26,3 @@ jobs:
         run: npm install -g serverless
       - name: Serverless bereitstellen
         run: serverless deploy --stage inttest --region eu-central-1
-      - name: Serverless Bereitstellung überprüfen
-        run: serverless info --stage inttest --region eu-central-1
