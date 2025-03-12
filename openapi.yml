@@ -1,0 +1,62 @@
+openapi: 3.0.0
+info:
+  title: SQS Direct Integration API
+  version: '1.0'
+paths:
+  /post-me-something:
+    post:
+      summary: Send message to SQS
+      parameters:
+        - in: query
+          name: in
+          required: true
+          schema:
+            type: string
+          description: Input value to be sent to SQS
+      responses:
+        '200':
+          description: Message sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  MessageId:
+                    type: string
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+    options:
+      summary: CORS support
+      responses:
+        '200':
+          description: CORS response
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+            Access-Control-Allow-Credentials:
+              schema:
+                type: string
+            Access-Control-Expose-Headers:
+              schema:
+                type: string
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        message:
+          type: string

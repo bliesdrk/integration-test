@@ -1,0 +1,124 @@
+service: integration-test
+frameworkVersion: '4'
+configValidationMode: error
+licenseKey: ${ssm:/serverless-framework-license-key}
+
+provider:
+  name: aws
+  runtime: python3.13
+  region: eu-central-1
+  stage: inttest
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - sns:Publish
+          Resource: !Ref MyTopic
+
+package:
+  individually: false
+  patterns:
+    - '!**'
+    - '*.py'
+
+functions:
+  processQueue:
+    handler: handler.process_queue
+    events:
+      - sqs:
+          arn: !GetAtt MyQueue.Arn
+          batchSize: 1
+    environment:
+      TOPIC_ARN: !Ref MyTopic
+
+resources:
+  Resources:
+    MyDeadLetterQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: myDLQ
+
+    MyQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: myQ
+        RedrivePolicy:
+          deadLetterTargetArn: !GetAtt MyDeadLetterQueue.Arn
+          maxReceiveCount: 3
+
+    MyTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: myTopic
+
+    HttpApi:
+      Type: AWS::ApiGatewayV2::Api
+      Properties:
+        Name: SQS-Integration-API
+        ProtocolType: HTTP
+
+    ApiIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId: !Ref HttpApi
+        IntegrationType: AWS_PROXY
+        IntegrationSubtype: SQS-SendMessage
+        PayloadFormatVersion: '1.0'
+        CredentialsArn: !GetAtt ApiGatewayRole.Arn
+        RequestParameters:
+          QueueUrl: !Ref MyQueue
+          MessageBody: $request.body
+
+    ApiRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId: !Ref HttpApi
+        RouteKey: POST /message
+        Target: !Join
+          - /
+          - - integrations
+            - !Ref ApiIntegration
+
+    ApiStage:
+      Type: AWS::ApiGatewayV2::Stage
+      Properties:
+        ApiId: !Ref HttpApi
+        StageName: ${sls:stage}
+        AutoDeploy: true
+
+    ApiGatewayRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: apigateway.amazonaws.com
+              Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+        Policies:
+          - PolicyName: AllowSQSAccess
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - sqs:SendMessage
+                  Resource: !GetAtt MyQueue.Arn
+
+  Outputs:
+    ApiEndpoint:
+      Description: API Endpoint
+      Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com
+    QueueUrl:
+      Description: SQS Queue URL
+      Value: !Ref MyQueue
+    QueueArn:
+      Description: SQS Queue ARN
+      Value: !GetAtt MyQueue.Arn
+    TopicArn:
+      Description: SNS Topic ARN
+      Value: !Ref MyTopic
